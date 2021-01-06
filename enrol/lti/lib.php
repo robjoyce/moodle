@@ -28,6 +28,11 @@ use IMSGlobal\LTI\ToolProvider\ToolConsumer;
 defined('MOODLE_INTERNAL') || die();
 
 /**
+ * ENROL_LTI_CREATE_GROUP constant for automatically creating a group for an LTI enrolment.
+ */
+define('ENROL_LTI_CREATE_GROUP', -1);
+
+/**
  * LTI enrolment plugin class.
  *
  * @package enrol_lti
@@ -89,6 +94,41 @@ class enrol_lti_plugin extends enrol_plugin {
     }
 
     /**
+     * Create a new group with the instance's name.
+     *
+     * @param int $courseid
+     * @param int $ltiname
+     * @return int $groupid Group ID for this cohort.
+     */
+    protected function create_new_group($courseid, $ltiname) {
+        global $DB, $CFG;
+
+        require_once($CFG->dirroot.'/group/lib.php');
+
+        if (!$ltiname) {
+            $ltiname = 'LTI';
+        }
+
+        $a = new stdClass();
+        $a->name = $ltiname;
+        $a->increment = '';
+        $inc = 1;
+        $groupname = trim(get_string('defaultgroupnametext', 'enrol_lti', $a));
+        // Check to see if the group name already exists in this course. Add an incremented number if it does.
+        while ($DB->record_exists('groups', array('name' => $groupname, 'courseid' => $courseid))) {
+            $a->increment = '(' . (++$inc) . ')';
+            $groupname = trim(get_string('defaultgroupnametext', 'enrol_lti', $a));
+        }
+        // Create a new group for the course meta sync.
+        $groupdata = new stdClass();
+        $groupdata->courseid = $courseid;
+        $groupdata->name = $groupname;
+        $groupid = groups_create_group($groupdata);
+
+        return $groupid;
+    }
+
+    /**
      * Add new instance of enrol plugin.
      *
      * @param object $course
@@ -97,6 +137,13 @@ class enrol_lti_plugin extends enrol_plugin {
      */
     public function add_instance($course, array $fields = null) {
         global $DB;
+
+        if (!empty($fields['groupid']) && $fields['groupid'] == ENROL_LTI_CREATE_GROUP) {
+            $context = context_course::instance($course->id);
+            require_capability('moodle/course:managegroups', $context);
+            $groupid = $this->create_new_group($course->id, $fields['name']);
+            $fields['groupid'] = $groupid;
+        }
 
         $instanceid = parent::add_instance($course, $fields);
 
@@ -123,6 +170,13 @@ class enrol_lti_plugin extends enrol_plugin {
      */
     public function update_instance($instance, $data) {
         global $DB;
+
+        if (!empty($data->groupid) && $data->groupid == ENROL_LTI_CREATE_GROUP) {
+            $context = context_course::instance($instance->courseid);
+            require_capability('moodle/course:managegroups', $context);
+            $groupid = $this->create_new_group($instance->courseid, $data->name);
+            $data->groupid = $groupid;
+        }
 
         parent::update_instance($instance, $data);
 
@@ -203,6 +257,24 @@ class enrol_lti_plugin extends enrol_plugin {
     }
 
     /**
+     * Return an array of valid options for the groups.
+     *
+     * @param context $coursecontext
+     * @return array
+     */
+    protected function get_group_options($coursecontext) {
+        $groups = array(0 => get_string('none'));
+        $courseid = $coursecontext->instanceid;
+        if (has_capability('moodle/course:managegroups', $coursecontext)) {
+            $groups[ENROL_LTI_CREATE_GROUP] = get_string('creategroup', 'enrol_lti');
+        }
+        foreach (groups_get_all_groups($courseid) as $group) {
+            $groups[$group->id] = format_string($group->name, true, array('context' => $coursecontext));
+        }
+        return $groups;
+    }
+
+    /**
      * Add elements to the edit instance form.
      *
      * @param stdClass $instance
@@ -258,6 +330,9 @@ class enrol_lti_plugin extends enrol_plugin {
         $mform->addElement('select', 'rolelearner', get_string('rolelearner', 'enrol_lti'), $assignableroles);
         $mform->setDefault('rolelearner', '5');
         $mform->addHelpButton('rolelearner', 'rolelearner', 'enrol_lti');
+
+        $groups = $this->get_group_options($context);
+        $mform->addElement('select', 'groupid', get_string('addgroup', 'enrol_lti'), $groups);
 
         $mform->addElement('header', 'remotesystem', get_string('remotesystem', 'enrol_lti'));
 
@@ -375,6 +450,13 @@ class enrol_lti_plugin extends enrol_plugin {
             }
         }
 
+        $validgroups = array_keys($this->get_group_options($context));
+        $tovalidate = array(
+            'groupid' => $validgroups
+        );
+        $typeerrors = $this->validate_param_types($data, $tovalidate);
+        $errors = array_merge($errors, $typeerrors);
+
         return $errors;
     }
 
@@ -387,6 +469,10 @@ class enrol_lti_plugin extends enrol_plugin {
      * @param int $oldid
      */
     public function restore_instance(restore_enrolments_structure_step $step, stdClass $data, $course, $oldid) {
+        if (!empty($data->groupid)) {
+            $data->groupid = $step->get_mappingid('group', $data->groupid);
+        }
+
         // We want to call the parent because we do not want to add an enrol_lti_tools row
         // as that is done as part of the restore process.
         $instanceid = parent::add_instance($course, (array)$data);

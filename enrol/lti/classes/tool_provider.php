@@ -332,6 +332,12 @@ class tool_provider extends ToolProvider {
         $roleid = $isinstructor ? $tool->roleinstructor : $tool->rolelearner;
         role_assign($roleid, $user->id, $tool->contextid);
 
+        // Add the user to the requested group.
+        if ($tool->groupid) {
+            require_once($CFG->dirroot . '/group/lib.php');
+            groups_add_member($tool->groupid, $user->id, 'enrol_lti', $tool->id);
+        }
+
         // Login user.
         $sourceid = $this->user->ltiResultSourcedId;
         $serviceurl = $this->resourceLink->getSetting('lis_outcome_service_url');

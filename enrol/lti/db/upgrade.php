@@ -37,7 +37,9 @@
  * @return boolean
  */
 function xmldb_enrol_lti_upgrade($oldversion) {
-    global $CFG;
+    global $DB, $CFG;
+
+    $dbman = $DB->get_manager();
 
     // Automatically generated Moodle v3.5.0 release upgrade line.
     // Put any upgrade step following this.
@@ -53,6 +55,17 @@ function xmldb_enrol_lti_upgrade($oldversion) {
 
     // Automatically generated Moodle v3.9.0 release upgrade line.
     // Put any upgrade step following this.
+
+    if ($oldversion < 2021052501) {
+        $table = new xmldb_table('enrol_lti_tools');
+        $field = new xmldb_field('groupid', XMLDB_TYPE_INTEGER, '10', null, null, null, '0', 'rolelearner');
+
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_plugin_savepoint(true, 2021052501, 'enrol', 'lti');
+    }
 
     return true;
 }

@@ -22,9 +22,12 @@
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+$string['addgroup'] = 'Add to group';
 $string['allowframeembedding'] = 'Note: It is recommended that the site administration setting \'Allow frame embedding\' is enabled, so that tools are displayed within a frame rather than in a new window.';
 $string['authltimustbeenabled'] = 'Note: This plugin requires the LTI authentication plugin to be enabled too.';
 $string['couldnotestablishproxy'] = 'Could not establish proxy with consumer.';
+$string['creategroup'] = 'Create new group';
+$string['defaultgroupnametext'] = '{$a->name} enrolment {$a->increment}';
 $string['enrolenddate'] = 'End date';
 $string['enrolenddate_help'] = 'If enabled, users can access until this date only.';
 $string['enrolenddateerror'] = 'Enrolment end date cannot be earlier than start date';
